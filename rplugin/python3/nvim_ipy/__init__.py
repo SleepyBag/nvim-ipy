@@ -314,7 +314,7 @@ class IPythonPlugin(object):
         # 'connect' waits for kernelinfo, and so must be async
         Async(self).connect(args)
 
-    @neovim.function("IPyRun")
+    # @neovim.function("IPyRun")
     def ipy_run(self, args):
         code = args[0]
         silent = bool(args[1]) if len(args) > 1 else False
@@ -343,7 +343,7 @@ class IPythonPlugin(object):
         self.append_outbuf(args[0])
 
     @neovim.function("IPyComplete")
-    def ipy_complete(self,args):
+    def ipy_complete(self, args):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if
         #completing just after entering insert mode:
@@ -394,13 +394,17 @@ class IPythonPlugin(object):
         else:
             self.append_outbuf("\n"+c['data']['text/plain']+"\n")
 
-    @neovim.function("IPyInterrupt")
-    def ipy_interrupt(self, args):
-        self.km.interrupt_kernel()
+    # @neovim.function("IPyInterrupt")
+    # def ipy_interrupt(self, args):
+    #     self.km.interrupt_kernel()
 
-    @neovim.function("IPyTerminate")
+    @neovim.function("IPyTerminateImpl")
     def ipy_terminate(self, args):
         self.km.shutdown_kernel()
+
+    @neovim.function("IPyConnFile",sync=True)
+    def ipy_confile(self, args):
+        return self.ip_app.connection_file
 
     def _on_iopub_msg(self, m):
         #FIXME: figure out the smoothest way to to matchaddpos

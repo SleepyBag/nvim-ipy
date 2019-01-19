@@ -1,6 +1,9 @@
-command! -nargs=* IPython :call IPyConnect(<f-args>)
-command! -nargs=* IPython2 :call IPyConnect("--kernel", "python2")
-command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
+"command! -nargs=* IPythonKernel :call IPyConnect( "--no-window", <f-args>)
+"command! -nargs=* IPython2Kernel :call IPyConnect("--kernel", "python2", "--no-window")
+"command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
+"command! IPySplitTerm :call <SID>split_term()
+command! Ipy :call ToggleIPython()
+command! Ipy2 :call ToggleIPython2()
 
 nnoremap <Plug>(IPy-Word) <Cmd>call IPyRun(expand("<cword>"))<cr>
 nnoremap <Plug>(IPy-Run) <Cmd>call IPyRun(getline('.')."\n")<cr>
@@ -18,9 +21,73 @@ hi IPyOut ctermfg=red cterm=bold guifg=red gui=bold
 hi IPyBold cterm=bold gui=bold
 let s:colors = ["Black", "Red", "Green", "DarkYellow", "Blue", "DarkMagenta", "#00bbdd", "LightGray",
              \  "Gray", "#ff4444", "LimeGreen", "Yellow", "LightBlue", "Magenta", "Cyan", "White"]
+let s:ipython_kernel_opened = 0
+let s:ipython2_kernel_opened = 0
+let s:currentWindow = -1
+let g:ipython_window_height = 10
+let s:termjob = -1
 for i in range(0,15)
     execute "hi IPyFg".i." ctermfg=".i." guifg=".s:colors[i]
 endfor
+
+function! ToggleIPython()
+    if s:currentWindow == -1
+        call OpenIPython()
+    else
+        exec(s:currentWindow.'wincmd w')
+        exec('wincmd q')
+        let s:currentWindow = -1
+    endif
+endfunction
+
+function! ToggleIPython2()
+    if s:currentWindow == -1
+        call OpenIPython2()
+    else
+        exec(s:currentWindow.'wincmd w')
+        exec('wincmd q')
+        let s:currentWindow = -1
+    endif
+endfunction
+
+function! IPyInterrupt()
+    call chansend(s:termjob, "\003")
+endfunction
+
+function! IPyTerminate()
+    call IPyTerminateImpl()
+    let s:ipython_kernel_opened = 0
+    let s:ipython2_kernel_opened = 0
+endfunction
+
+function! OpenIPython()
+    if s:ipython_kernel_opened == 0
+        call IPyConnect("--no-window")
+        let s:ipython_kernel_opened = 1
+    endif
+    call s:split_term()
+    exec('resize '.g:ipython_window_height)
+    let s:currentWindow = winnr()
+    exec('wincmd p')
+endfunction
+
+function! OpenIPython2()
+    if s:ipython2_kernel_opened == 0
+        call IPyConnect("--kernel", "python2", "--no-window")
+        let s:ipython2_kernel_opened = 1
+    endif
+    call s:split_term()
+    exec('resize '.g:ipython_window_height)
+    let s:currentWindow = winnr()
+    exec('wincmd p')
+endfunction
+
+function! s:split_term()
+    let cfile = IPyConnFile()
+    new
+    let s:termjob = termopen(['jupyter', 'console', '--existing', cfile])
+    "startinsert
+endfunction
 
 function! s:get_current_word()
     let isk_save = &isk
@@ -74,6 +141,29 @@ function! s:select(mode, start, end)
     endif
 endfunction
 
+"function! Trim(str)
+"    let str = a:str
+"    let prestr = substitute(str, "\ *$", "", "")
+"    let trimed_str = substitute(prestr, "^\ *", "", "")
+"    let space = substitute(prestr, '\V'.trimed_str, "", "")
+"    return [str, space]
+"endfunction
+
+function! IPyRun(str)
+    if s:currentWindow == -1
+        call OpenIPython()
+    endif
+    let strs = split(a:str, "\n")
+    for str in strs
+        call chansend(s:termjob, "\0330C")
+        call chansend(s:termjob, str."\033o")
+        "exec 'sleep 100m'
+    endfor
+    call chansend(s:termjob, "\n\n")
+    exec s:currentWindow."wincmd w"
+    exec 'normal G'
+    exec s:currentWindow."wincmd p"
+endfunction
 
 " TODO: make me a reusable text object
 function! IPyRunCell()
